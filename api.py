@@ -18,6 +18,7 @@ from fastapi import FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel
 
 from src.auth import KeyStore
+from src.config import api_host, api_key_file, api_port, banner, storage_dir
 from src.storage import MemoryStore
 
 app = FastAPI(
@@ -26,8 +27,8 @@ app = FastAPI(
     version="0.2.0",
 )
 
-_store = MemoryStore("storage")
-_keys = KeyStore("storage")
+_store = MemoryStore(storage_dir())
+_keys = KeyStore(storage_dir())
 
 
 # ----------------------------------------------------------------------
@@ -173,6 +174,8 @@ def stats(authorization: Optional[str] = Header(None)):
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8131
-    print(f"🚀 Cruzl Labs API di http://127.0.0.1:{port} (docs: /docs)")
-    uvicorn.run(app, host="127.0.0.1", port=port)
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else api_port()
+    host = api_host()
+    print(banner())
+    print(f"🚀 Cruzl Labs API di http://{host}:{port} (docs: /docs)")
+    uvicorn.run(app, host=host, port=port)

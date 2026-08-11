@@ -17,7 +17,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from src.config import storage_dir  # noqa: E402
 from src.storage import MemoryStore  # noqa: E402
+
+
+def _resolve_storage(args) -> str:
+    """Storage dari flag --storage > env var > default."""
+    if getattr(args, "storage", None):
+        return args.storage
+    return storage_dir()
 
 
 def cmd_add(args: argparse.Namespace, store: MemoryStore) -> int:
@@ -183,7 +191,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-    store = MemoryStore(args.storage)
+    store = MemoryStore(_resolve_storage(args))
     return args.func(args, store)
 
 
