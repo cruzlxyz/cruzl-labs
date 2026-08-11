@@ -1,0 +1,47 @@
+{
+  "entities": {
+    "u_alpha": {
+      "label": "user",
+      "props": {}
+    },
+    "horror": {
+      "label": "genre",
+      "props": {}
+    },
+    "western": {
+      "label": "genre",
+      "props": {}
+    }
+  },
+  "edges": [
+    {
+      "from": "u_alpha",
+      "to": "horror",
+      "rel": "likes",
+      "weight": 3.0,
+      "created_at": "2026-08-11T09:55:03Z",
+      "updated_at": "2026-08-11T09:55:03Z"
+    },
+    {
+      "from": "u_alpha",
+      "to": "western",
+      "rel": "likes",
+      "weight": 1.5,
+      "created_at": "2026-08-11T09:55:03Z"
+    },
+    {
+      "from": "u_alpha",
+      "to": "solana",
+      "rel": "active_on",
+      "weight": 1.0,
+      "created_at": "2026-08-11T09:55:47Z"
+    },
+    {
+      "from": "u_alpha",
+      "to": "airdrop",
+      "rel": "farming",
+      "weight": 1.0,
+      "created_at": "2026-08-11T09:55:47Z"
+    }
+  ]
+}

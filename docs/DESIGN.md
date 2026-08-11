@@ -105,13 +105,63 @@ query → 1. keyword search
 
 - [x] Fase 1: Storage + CLI CRUD + tag/scope
 - [x] API key system (hash-only, revoke)
-- [ ] **Fase 2a: Dedup + conflict resolution** ← SEKARANG
-- [ ] Fase 2b: Multi-user isolation (user_id)
-- [ ] Fase 2c: API server (FastAPI + auth)
-- [ ] Fase 3: Semantic search (embedding API) + hybrid ranking
-- [ ] Fase 4: Reflective summarization (LLM ringkas sesi)
-- [ ] Fase 5: Entity resolution + graph
+- [x] Fase 2a: Dedup + conflict resolution
+- [x] Fase 2b: Multi-user isolation (user_id)
+- [x] Fase 2c: API server (FastAPI + auth)
+- [ ] **Fase 3a: POINT EXTRACTION** — ambil poin penting dari chat (LLM)
+- [ ] **Fase 3b: USER MODELING** — profil user berkembang dari chat
+- [ ] **Fase 3c: KNOWLEDGE GRAPH** — entitas + relasi (JSON ringan)
+- [ ] **Fase 3d: CHAT ENDPOINT** — user bisa chat sama agent + memory otomatis
+- [ ] Fase 4: Semantic search (embedding API) + hybrid ranking
+- [ ] Fase 5: Entity resolution lanjutan
 - [ ] Fase 6: Export Obsidian + backup
+
+## Fase 3 — Chat-Driven Memory (detail)
+
+### 3a. Point Extraction
+```
+POST /chat  (isi: pesan user + balasan agent)
+  → LLM ekstrak poin penting:
+     {"type": "fact", "text": "user suka horror", "confidence": 0.9}
+     {"type": "update", "existing": "...", "new": "..."}
+  → simpan via storage.add (dedup otomatis!)
+```
+
+### 3b. User Modeling
+```
+Dari poin yang terkumpul → bangun profil:
+  {"id": "profile_u_xxx", "user_id": "u_xxx",
+   "preferences": [...], "style": "...", "facts": [...],
+   "updated_at": "..."}
+  Profile = ringkasan terkini — di-refresh tiap chat
+```
+
+### 3c. Knowledge Graph (JSON ringan)
+```
+storage/relations.json:
+  {"entities": {"u_alpha": {"label": "user", "props": {}},
+                "horror": {"label": "genre", "props": {}}},
+   "edges": [{"from": "u_alpha", "to": "horror", "rel": "likes"}]}
+  → query: "apa yang user suka?" → ikut edges
+```
+
+### 3d. Chat Endpoint
+```
+POST /chat {"message": "gw suka film horror"}
+  → balas dari agent (LLM)
+  → ekstrak memory dari percakapan
+  → update profile + graph
+  → return {"reply": "...", "memory_saved": [...], "profile": {...}}
+```
+
+## Kenapa Ini Bikin Cruzl Labs BEDA
+
+| Fitur | Mereka | Cruzl Labs |
+|-------|--------|------------|
+| Chat-driven memory | Honcho (SaaS) | **Self-host + JSONL** |
+| Knowledge graph | Zep (Neo4j berat) | **JSON ringan** |
+| User modeling | Honcho (cloud) | **File lokal transparan** |
+| Point extraction | Hindsight | **Dedup + conflict otomatis** |
 
 ## Kenapa Beda dari Sistem Lain
 

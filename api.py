@@ -19,16 +19,22 @@ from pydantic import BaseModel
 
 from src.auth import KeyStore
 from src.config import api_host, api_key_file, api_port, banner, storage_dir
+from src.extract import PointExtractor
+from src.graph import KnowledgeGraph
+from src.profile import UserProfile
 from src.storage import MemoryStore
 
 app = FastAPI(
     title="Cruzl Labs API",
     description="AI-native memory layer untuk agent — 1 key = 1 user.",
-    version="0.2.0",
+    version="0.3.0",
 )
 
 _store = MemoryStore(storage_dir())
 _keys = KeyStore(storage_dir())
+_extractor = PointExtractor()
+_profiles = UserProfile(storage_dir())
+_graph = KnowledgeGraph(storage_dir())
 
 
 # ----------------------------------------------------------------------
@@ -169,6 +175,96 @@ def stats(authorization: Optional[str] = Header(None)):
         t = m.get("type", "fact")
         by_type[t] = by_type.get(t, 0) + 1
     return {"user_id": uid, "total": len(memories), "by_type": by_type}
+
+
+# ----------------------------------------------------------------------
+# Fase 3 — Chat-driven memory
+# ----------------------------------------------------------------------
+
+class ChatMessage(BaseModel):
+    message: str
+    agent_reply: str = ""
+    auto_extract: bool = True
+
+
+@app.post("/chat")
+def chat(
+    body: ChatMessage,
+    authorization: Optional[str] = Header(None),
+):
+    """Terima percakapan → ekstrak poin penting → update memory+profile+graph.
+
+    LLM extraction via CRUZL_LLM_PROVIDER (ollama default, openai opsional).
+    Kalau LLM ga available → fallback: simpan pesan user sebagai fact.
+    """
+    key_info = _require_user(authorization)
+    uid = key_info["user_id"]
+
+    conversation = f"User: {body.message}"
+    if body.agent_reply:
+        conversation += f"\nAgent: {body.agent_reply}"
+
+    memory_saved = []
+    if body.auto_extract:
+        points = _extractor.extract(conversation)
+        if not points:
+            # fallback: simpan pesan user sebagai fact
+            points = [{"type": "fact", "text": body.message, "confidence": 0.5}]
+        for pt in points:
+            entry = _store.add(
+                pt.get("text", ""),
+                source="chat",
+                mem_type=pt.get("type", "fact"),
+                confidence=pt.get("confidence", 0.6),
+                user_id=uid,
+                tags=pt.get("tags", []),
+            )
+            memory_saved.append({
+                "id": entry["id"],
+                "type": entry.get("type"),
+                "text": entry["text"],
+                "deduped": entry.get("_deduped", False),
+            })
+            # graph: user -> likes -> tag (kalau ada)
+            for tag in pt.get("tags", []):
+                _graph.add_edge(uid, tag, "about")
+        _profiles.update_from_points(uid, points)
+    else:
+        entry = _store.add(
+            body.message, source="chat", mem_type="fact", user_id=uid
+        )
+        memory_saved.append({"id": entry["id"], "type": "fact", "text": entry["text"]})
+
+    return {
+        "user_id": uid,
+        "memory_saved": memory_saved,
+        "profile": _profiles.summary(uid),
+        "graph": _graph.neighbors(uid),
+    }
+
+
+@app.get("/profile")
+def get_profile(authorization: Optional[str] = Header(None)):
+    """Lihat profil user (dari memory yang terkumpul)."""
+    key_info = _require_user(authorization)
+    uid = key_info["user_id"]
+    return {
+        "user_id": uid,
+        "profile": _profiles.get_or_create(uid),
+        "summary": _profiles.summary(uid),
+    }
+
+
+@app.get("/graph")
+def get_graph(authorization: Optional[str] = Header(None)):
+    """Lihat knowledge graph user ini."""
+    key_info = _require_user(authorization)
+    uid = key_info["user_id"]
+    return {
+        "user_id": uid,
+        "neighbors": _graph.neighbors(uid),
+        "text": _graph.to_text(),
+    }
 
 
 if __name__ == "__main__":
