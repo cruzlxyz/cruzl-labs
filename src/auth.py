@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 # Prefix biar key-nya kelihatan "branded" kayak sk-...
-KEY_PREFIX = "mb_"  # Memory Bridge
+KEY_PREFIX = "cl_"  # Cruzl Labs
 
 
 def generate_api_key() -> str:
