@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Data (memory pribadi — jangan di-commit!)
+storage/memories.jsonl
+storage/api_keys.json
+storage/*.jsonl.tmp
+storage/*.json.tmp
+
+# Env & secrets
+.env
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
