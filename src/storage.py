@@ -7,11 +7,52 @@ Tanpa dependency eksternal (stdlib only).
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+
+class FileLock:
+    """File-based lock (atomic mkdir) — aman antar proses/thread.
+
+    Pakai `os.mkdir` (atomic) sebagai lock. Cleanup otomatis via context manager.
+    """
+
+    def __init__(self, path: Path, timeout: float = 10.0):
+        self.lock_path = Path(str(path) + ".lock")
+        self.timeout = timeout
+
+    def acquire(self) -> None:
+        deadline = time.monotonic() + self.timeout
+        while True:
+            try:
+                self.lock_path.mkdir()
+                return
+            except FileExistsError:
+                if time.monotonic() > deadline:
+                    # stale lock — force remove (kode mati)
+                    try:
+                        self.lock_path.rmdir()
+                        continue
+                    except OSError:
+                        raise TimeoutError(f"Lock timeout: {self.lock_path}")
+                time.sleep(0.02)
+
+    def release(self) -> None:
+        try:
+            self.lock_path.rmdir()
+        except OSError:
+            pass
+
+    def __enter__(self):
+        self.acquire()
+        return self
+
+    def __exit__(self, *exc):
+        self.release()
 
 
 class MemoryStore:
@@ -95,24 +136,33 @@ class MemoryStore:
         text = text.strip()
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-        # ---- DEDUP: cek apakah text sudah ada (exact match) ----
+        # ---- DEDUP check: baca cache (tanpa lock — baca aman) ----
         memories = self.all()
         for mem in memories:
             if mem.get("user_id", "default") != user_id:
                 continue
             if self._is_duplicate(mem.get("text", ""), text):
-                # UPDATE entry lama (conflict resolution: yang baru menang)
-                mem["text"] = text
-                mem["updated_at"] = now
-                mem["confidence"] = max(mem.get("confidence", 0), confidence)
-                if tags:
-                    merged = list(dict.fromkeys(mem.get("tags", []) + tags))
-                    mem["tags"] = merged
-                self._rewrite(memories)
-                mem["_deduped"] = True
-                return mem
+                # UPDATE entry lama (conflict resolution) — butuh lock (rewrite)
+                with FileLock(self.memories_path):
+                    memories = self.all()  # re-read fresh dalam lock
+                    for mem2 in memories:
+                        if mem2.get("user_id", "default") != user_id:
+                            continue
+                        if self._is_duplicate(mem2.get("text", ""), text):
+                            mem2["text"] = text
+                            mem2["updated_at"] = now
+                            mem2["confidence"] = max(mem2.get("confidence", 0), confidence)
+                            if tags:
+                                merged = list(dict.fromkeys(mem2.get("tags", []) + tags))
+                                mem2["tags"] = merged
+                            self._rewrite(memories)
+                            mem2["_deduped"] = True
+                            return mem2
+                    break
+            else:
+                continue
 
-        # ---- BARU ----
+        # ---- BARU (append) — lock cuma untuk tulis ----
         entry = {
             "id": f"mem_{uuid.uuid4().hex[:8]}",
             "user_id": user_id,
@@ -128,8 +178,9 @@ class MemoryStore:
             "entities": [],
             "insights": [],
         }
-        with open(self.memories_path, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        with FileLock(self.memories_path):
+            with open(self.memories_path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
         self._invalidate()  # file berubah → cache harus reload
         return entry
 
@@ -184,12 +235,13 @@ class MemoryStore:
 
     def delete(self, mem_id: str) -> bool:
         """Hapus memory by id (rewrite file tanpa entry itu)."""
-        memories = self.all()
-        remaining = [m for m in memories if m.get("id") != mem_id]
-        if len(remaining) == len(memories):
-            return False
-        self._rewrite(remaining)
-        return True
+        with FileLock(self.memories_path):
+            memories = self.all()
+            remaining = [m for m in memories if m.get("id") != mem_id]
+            if len(remaining) == len(memories):
+                return False
+            self._rewrite(remaining)
+            return True
 
     def _rewrite(self, memories: List[Dict[str, Any]]) -> None:
         tmp = self.memories_path.with_suffix(".jsonl.tmp")

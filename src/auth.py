@@ -17,6 +17,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from src.storage import FileLock
+
 # Prefix biar key-nya kelihatan "branded" kayak sk-...
 KEY_PREFIX = "cl_"  # Cruzl Labs
 
@@ -70,18 +72,19 @@ class KeyStore:
         key_id = f"key_{uuid.uuid4().hex[:8]}"
         uid = user_id or f"u_{uuid.uuid4().hex[:8]}"
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        data = self._read()
-        data[key_id] = {
-            "id": key_id,
-            "label": label,
-            "scope": scope,
-            "user_id": uid,  # ← 1 key = 1 user
-            "key_hash": hash_key(key),  # ← cuma hash yang disimpan
-            "created_at": now,
-            "last_used": None,
-            "revoked": False,
-        }
-        self._write(data)
+        with FileLock(self.path):
+            data = self._read()
+            data[key_id] = {
+                "id": key_id,
+                "label": label,
+                "scope": scope,
+                "user_id": uid,  # ← 1 key = 1 user
+                "key_hash": hash_key(key),  # ← cuma hash yang disimpan
+                "created_at": now,
+                "last_used": None,
+                "revoked": False,
+            }
+            self._write(data)
         return {
             "key_id": key_id,
             "key": key,

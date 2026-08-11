@@ -15,6 +15,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.storage import FileLock
+
 
 class RawStore:
     def __init__(self, storage_dir: str = "storage"):
@@ -44,8 +46,9 @@ class RawStore:
             "created_at": now,
         }
         path = self._today_path()
-        with open(path, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        with FileLock(path):
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
         return entry
 
     def for_user(self, user_id: str, days: Optional[int] = None) -> List[Dict[str, Any]]:
