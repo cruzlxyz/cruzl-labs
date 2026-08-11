@@ -46,6 +46,8 @@ class PointExtractor:
         try:
             if self.provider == "openai":
                 raw = self._call_openai(prompt)
+            elif self.provider == "nvidia":
+                raw = self._call_nvidia(prompt)
             else:
                 raw = self._call_ollama(prompt)
             return self._parse(raw)
@@ -86,6 +88,24 @@ class PointExtractor:
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
         )
         with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode())
+        return data["choices"][0]["message"]["content"]
+
+    def _call_nvidia(self, prompt: str) -> str:
+        """Nvidia NIM API (OpenAI-compatible). Nemotron 3 Ultra dll."""
+        key = os.environ.get("NVIDIA_API_KEY", "")
+        base = os.environ.get("CRUZL_LLM_BASE_URL", "https://integrate.api.nvidia.com/v1")
+        payload = {
+            "model": self.model or "nvidia/nemotron-3-ultra-550b-a55b",
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 500,
+        }
+        req = urllib.request.Request(
+            f"{base}/chat/completions",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
+        )
+        with urllib.request.urlopen(req, timeout=90) as resp:
             data = json.loads(resp.read().decode())
         return data["choices"][0]["message"]["content"]
 
