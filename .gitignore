@@ -8,6 +8,8 @@ venv/
 # Data (memory pribadi — jangan di-commit!)
 storage/memories.jsonl
 storage/api_keys.json
+storage/relations.json
+storage/profiles.json
 storage/*.jsonl.tmp
 storage/*.json.tmp
 
