@@ -76,9 +76,21 @@ class Client:
         """Hybrid search — gabung keyword + semantic."""
         return self._request("GET", f"/memories/search/hybrid?q={query}&top_k={top_k}").get("results", [])
 
-    def list(self, scope: Optional[str] = None) -> List[Dict[str, Any]]:
-        path = "/memories" + (f"?scope={scope}" if scope else "")
+    def list(self, scope: Optional[str] = None, tag: Optional[str] = None, mem_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List memory, bisa filter by scope/tag/type."""
+        params = []
+        if scope:
+            params.append(f"scope={scope}")
+        if tag:
+            params.append(f"tag={tag}")
+        if mem_type:
+            params.append(f"type={mem_type}")
+        path = "/memories" + ("?" + "&".join(params) if params else "")
         return self._request("GET", path).get("memories", [])
+
+    def tags(self) -> Dict[str, int]:
+        """List semua tag + jumlah memory per tag."""
+        return self._request("GET", "/memories/tags").get("tags", {})
 
     def delete(self, mem_id: str) -> Dict[str, Any]:
         return self._request("DELETE", f"/memories/{mem_id}")
@@ -103,9 +115,16 @@ class Client:
     # Context (buat inject ke session)
     # ------------------------------------------------------------------
 
-    def context(self) -> Dict[str, Any]:
-        """Konteks user — inject ke system prompt pas session mulai."""
-        return self._request("GET", "/context")
+    def context(self, query: Optional[str] = None, top_facts: int = 3) -> Dict[str, Any]:
+        """Konteks user — inject ke system prompt. Opsional query → fakta relevan aja."""
+        path = "/context"
+        params = []
+        if query:
+            params.append(f"query={query}")
+            params.append(f"top_facts={top_facts}")
+        if params:
+            path += "?" + "&".join(params)
+        return self._request("GET", path)
 
     def profile(self) -> Dict[str, Any]:
         return self._request("GET", "/profile")

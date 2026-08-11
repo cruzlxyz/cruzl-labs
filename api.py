@@ -126,14 +126,36 @@ def create_memory(
 def list_memories(
     authorization: Optional[str] = Header(None),
     scope: Optional[str] = Query(None),
+    tag: Optional[str] = Query(None, description="Filter by tag (bisa diulang)"),
+    type: Optional[str] = Query(None, description="Filter by type (fact/profile/reflection/relation)"),
 ):
-    """List memory milik user ini (hanya punyanya sendiri)."""
+    """List memory milik user ini (hanya punyanya sendiri).
+
+    Bisa filter by scope, tag, dan type.
+    """
     key_info = _require_user(authorization)
     uid = key_info["user_id"]
     memories = [m for m in _store.all() if m.get("user_id", "default") == uid]
     if scope:
         memories = [m for m in memories if m.get("scope") == scope]
+    if tag:
+        memories = [m for m in memories if tag in m.get("tags", [])]
+    if type:
+        memories = [m for m in memories if m.get("type") == type]
     return {"user_id": uid, "count": len(memories), "memories": memories}
+
+
+@app.get("/memories/tags")
+def list_tags(authorization: Optional[str] = Header(None)):
+    """List semua tag milik user + jumlah memory per tag."""
+    key_info = _require_user(authorization)
+    uid = key_info["user_id"]
+    memories = [m for m in _store.all() if m.get("user_id", "default") == uid]
+    counts: Dict[str, int] = {}
+    for m in memories:
+        for t in m.get("tags", []):
+            counts[t] = counts.get(t, 0) + 1
+    return {"user_id": uid, "tags": dict(sorted(counts.items(), key=lambda x: -x[1]))}
 
 
 @app.get("/memories/search")
@@ -348,11 +370,18 @@ def get_graph(authorization: Optional[str] = Header(None)):
 
 
 @app.get("/context")
-def get_context(authorization: Optional[str] = Header(None)):
+def get_context(
+    authorization: Optional[str] = Header(None),
+    query: Optional[str] = Query(None, description="Fokus konteks — balikin fakta relevan aja"),
+    top_facts: int = Query(3, ge=1, le=10),
+):
     """Konteks lengkap user — siap di-inject ke system prompt agent mana pun.
 
     Endpoint universal: dipanggil agent di AWAL session biar
     "kenal" user-nya lagi walau pindah session / restart.
+
+    Kalau 'query' dikasih → balikin top-N fakta PALING RELEVAN
+    (semantic) — hemat token, cuma yang perlu aja.
     """
     key_info = _require_user(authorization)
     uid = key_info["user_id"]
@@ -370,8 +399,18 @@ def get_context(authorization: Optional[str] = Header(None)):
     pref = profile.get("preferences", [])
     if pref:
         blocks.append(f"PREFERENCES: {'; '.join(pref)}")
-    if facts:
+
+    if query and facts:
+        # relevant-facts: semantic search cuma fakta, top-N
+        fact_entries = [m for m in memories if m.get("type") == "fact"]
+        relevant = _embed.search(query, fact_entries, top_k=top_facts)
+        if relevant:
+            rel_texts = [r["text"] for r in relevant if r.get("score", 0) > 0.05]
+            if rel_texts:
+                blocks.append(f"RELEVANT FACTS ({query}): {'; '.join(rel_texts)}")
+    elif facts:
         blocks.append(f"KNOWN FACTS: {'; '.join(facts[:20])}")
+
     if reflections:
         blocks.append(f"LESSONS: {'; '.join(reflections[:10])}")
     if graph_text and "(graph kosong)" not in graph_text:
