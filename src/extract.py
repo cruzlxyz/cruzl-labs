@@ -41,15 +41,18 @@ class PointExtractor:
 
     def extract(self, conversation: str) -> List[Dict[str, Any]]:
         """Ekstrak poin penting dari percakapan. Return list memory candidates."""
-        prompt = EXTRACT_PROMPT.format(conversation=conversation[:3000])
+        # pakai replace, bukan format (prompt mengandung {} JSON contoh)
+        prompt = EXTRACT_PROMPT.replace("{conversation}", conversation[:3000])
         try:
             if self.provider == "openai":
                 raw = self._call_openai(prompt)
             else:
                 raw = self._call_ollama(prompt)
             return self._parse(raw)
-        except Exception as exc:
-            return [{"type": "fact", "text": f"[extract error: {exc}]", "confidence": 0.1}]
+        except Exception:
+            # LLM ga available → return kosong (API akan fallback ke
+            # simpan pesan user sebagai fact, bukan pesan error)
+            return []
 
     # ------------------------------------------------------------------
 

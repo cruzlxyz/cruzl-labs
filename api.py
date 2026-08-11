@@ -263,7 +263,50 @@ def get_graph(authorization: Optional[str] = Header(None)):
     return {
         "user_id": uid,
         "neighbors": _graph.neighbors(uid),
-        "text": _graph.to_text(),
+        "text": _graph.to_text(user_id=uid),
+    }
+
+
+@app.get("/context")
+def get_context(authorization: Optional[str] = Header(None)):
+    """Konteks lengkap user — siap di-inject ke system prompt agent mana pun.
+
+    Endpoint universal: dipanggil agent di AWAL session biar
+    "kenal" user-nya lagi walau pindah session / restart.
+    """
+    key_info = _require_user(authorization)
+    uid = key_info["user_id"]
+
+    # facts + profile dari memory user ini
+    memories = [m for m in _store.all() if m.get("user_id", "default") == uid]
+    facts = [m["text"] for m in memories if m.get("type") == "fact"]
+    reflections = [m["text"] for m in memories if m.get("type") == "reflection"]
+
+    profile = _profiles.get_or_create(uid)
+    graph_text = _graph.to_text(user_id=uid)
+
+    # blok teks siap-pakai (kompak, hemat token)
+    blocks = []
+    pref = profile.get("preferences", [])
+    if pref:
+        blocks.append(f"PREFERENCES: {'; '.join(pref)}")
+    if facts:
+        blocks.append(f"KNOWN FACTS: {'; '.join(facts[:20])}")
+    if reflections:
+        blocks.append(f"LESSONS: {'; '.join(reflections[:10])}")
+    if graph_text and "(graph kosong)" not in graph_text:
+        blocks.append(f"RELATIONS:\n{graph_text}")
+
+    context_text = "\n".join(blocks) if blocks else "(belum ada memory untuk user ini)"
+
+    return {
+        "user_id": uid,
+        "context": context_text,      # ← inject ini ke system prompt
+        "profile": profile,
+        "facts": facts,
+        "reflections": reflections,
+        "graph": graph_text,
+        "usage": {"inject_hint": "Masukkan 'context' ke system prompt agent."},
     }
 
 

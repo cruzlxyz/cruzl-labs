@@ -103,10 +103,15 @@ class KnowledgeGraph:
         data = self._read()
         return {"entities": len(data["entities"]), "edges": len(data["edges"])}
 
-    def to_text(self) -> str:
-        """Representasi teks buat prompt agent (compact)."""
+    def to_text(self, user_id: Optional[str] = None) -> str:
+        """Representasi teks buat prompt agent (compact).
+
+        Kalau user_id dikasih → cuma edges yang terhubung ke user itu.
+        """
         data = self._read()
         lines = []
         for e in data["edges"]:
+            if user_id and e["from"] != user_id:
+                continue
             lines.append(f"{e['from']} -[{e['rel']}]-> {e['to']}")
         return "\n".join(lines) if lines else "(graph kosong)"
