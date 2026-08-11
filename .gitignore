@@ -10,6 +10,7 @@ storage/memories.jsonl
 storage/api_keys.json
 storage/relations.json
 storage/profiles.json
+storage/raw/
 storage/*.jsonl.tmp
 storage/*.json.tmp
 
