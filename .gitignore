@@ -22,3 +22,4 @@ storage/*.json.tmp
 # OS
 .DS_Store
 Thumbs.db
+storage/embeddings.jsonl

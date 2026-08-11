@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from src.auth import KeyStore
 from src.config import api_host, api_key_file, api_port, banner, storage_dir
+from src.embed import EmbeddingClient
 from src.extract import PointExtractor
 from src.graph import KnowledgeGraph
 from src.profile import UserProfile
@@ -28,7 +29,7 @@ from src.storage import MemoryStore
 app = FastAPI(
     title="Cruzl Labs API",
     description="AI-native memory layer untuk agent — 1 key = 1 user.",
-    version="0.4.0",
+    version="0.5.0",
 )
 
 _store = MemoryStore(storage_dir())
@@ -37,6 +38,7 @@ _extractor = PointExtractor()
 _profiles = UserProfile(storage_dir())
 _graph = KnowledgeGraph(storage_dir())
 _raw = RawStore(storage_dir())
+_embed = EmbeddingClient(storage_dir())
 
 
 # ----------------------------------------------------------------------
@@ -148,6 +150,58 @@ def search_memories(
         if m.get("user_id", "default") == uid
     ]
     return {"user_id": uid, "query": q, "count": len(results), "results": results}
+
+
+@app.get("/memories/search/semantic")
+def semantic_search(
+    q: str = Query(..., description="Query pencarian semantik"),
+    top_k: int = Query(5, ge=1, le=20),
+    authorization: Optional[str] = Header(None),
+):
+    """Semantic search — cari berdasarkan makna, bukan keyword.
+
+    Pakai embedding via API (0 RAM lokal). Cocok buat query yang
+    keyword-nya beda tapi maknanya sama.
+    """
+    key_info = _require_user(authorization)
+    uid = key_info["user_id"]
+    memories = [m for m in _store.all() if m.get("user_id", "default") == uid]
+    results = _embed.search(q, memories, top_k=top_k)
+    return {"user_id": uid, "query": q, "count": len(results), "results": results}
+
+
+@app.get("/memories/search/hybrid")
+def hybrid_search(
+    q: str = Query(..., description="Query pencarian"),
+    top_k: int = Query(5, ge=1, le=20),
+    authorization: Optional[str] = Header(None),
+):
+    """Hybrid search: gabung keyword + semantic, ranking gabungan.
+
+    Keyword (exact, cepet) + semantic (makna) → combine & ranking.
+    """
+    key_info = _require_user(authorization)
+    uid = key_info["user_id"]
+
+    kw_results = _store.search(q)
+    kw_ids = {m["id"] for m in kw_results}
+
+    memories = [m for m in _store.all() if m.get("user_id", "default") == uid]
+    sem_results = _embed.search(q, memories, top_k=top_k)
+
+    # gabung: semantic score + bonus keyword match
+    combined: Dict[str, Dict] = {}
+    for r in sem_results:
+        score = r.get("score", 0.0)
+        if r["id"] in kw_ids:
+            score += 0.3  # bonus keyword match
+        combined[r["id"]] = {**r, "score": round(score, 4), "matched": "semantic+keyword" if r["id"] in kw_ids else "semantic"}
+    for r in kw_results:
+        if r["id"] not in combined:
+            combined[r["id"]] = {**r, "score": 0.5, "matched": "keyword"}
+
+    ranked = sorted(combined.values(), key=lambda x: -x["score"])[:top_k]
+    return {"user_id": uid, "query": q, "count": len(ranked), "results": ranked}
 
 
 @app.delete("/memories/{mem_id}")

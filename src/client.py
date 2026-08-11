@@ -68,6 +68,14 @@ class Client:
     def search(self, query: str) -> List[Dict[str, Any]]:
         return self._request("GET", f"/memories/search?q={query}").get("results", [])
 
+    def search_semantic(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+        """Semantic search — berdasarkan makna, bukan keyword."""
+        return self._request("GET", f"/memories/search/semantic?q={query}&top_k={top_k}").get("results", [])
+
+    def search_hybrid(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+        """Hybrid search — gabung keyword + semantic."""
+        return self._request("GET", f"/memories/search/hybrid?q={query}&top_k={top_k}").get("results", [])
+
     def list(self, scope: Optional[str] = None) -> List[Dict[str, Any]]:
         path = "/memories" + (f"?scope={scope}" if scope else "")
         return self._request("GET", path).get("memories", [])
