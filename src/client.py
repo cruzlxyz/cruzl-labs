@@ -20,6 +20,8 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from urllib.parse import quote
+
 from typing import Any, Dict, List, Optional
 
 
@@ -66,15 +68,15 @@ class Client:
         })
 
     def search(self, query: str) -> List[Dict[str, Any]]:
-        return self._request("GET", f"/memories/search?q={query}").get("results", [])
+        return self._request("GET", f"/memories/search?q={quote(query)}").get("results", [])
 
     def search_semantic(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """Semantic search — berdasarkan makna, bukan keyword."""
-        return self._request("GET", f"/memories/search/semantic?q={query}&top_k={top_k}").get("results", [])
+        return self._request("GET", f"/memories/search/semantic?q={quote(query)}&top_k={top_k}").get("results", [])
 
     def search_hybrid(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """Hybrid search — gabung keyword + semantic."""
-        return self._request("GET", f"/memories/search/hybrid?q={query}&top_k={top_k}").get("results", [])
+        return self._request("GET", f"/memories/search/hybrid?q={quote(query)}&top_k={top_k}").get("results", [])
 
     def list(self, scope: Optional[str] = None, tag: Optional[str] = None, mem_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """List memory, bisa filter by scope/tag/type."""
@@ -120,7 +122,7 @@ class Client:
         path = "/context"
         params = []
         if query:
-            params.append(f"query={query}")
+            params.append(f"query={quote(query)}")
             params.append(f"top_facts={top_facts}")
         if params:
             path += "?" + "&".join(params)
