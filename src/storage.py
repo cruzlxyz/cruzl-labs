@@ -15,17 +15,62 @@ from typing import Any, Dict, List, Optional
 
 
 class MemoryStore:
-    """JSONL-based memory storage dengan pencarian keyword sederhana."""
+    """JSONL-based memory storage dengan pencarian keyword sederhana.
+
+    Performa: baca file SEKALI ke memory (cache) + maintain index kata.
+    Search O(1) dari index, ga baca ulang disk.
+    """
 
     def __init__(self, storage_dir: str = "storage"):
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self.memories_path = self.storage_dir / "memories.jsonl"
         self._ensure_file()
+        self._cache: Optional[List[Dict[str, Any]]] = None   # None = belum load
+        self._index: Dict[str, set] = {}                     # kata -> {mem_id}
+        self._mtime = 0.0
 
     def _ensure_file(self) -> None:
         if not self.memories_path.exists():
             self.memories_path.touch()
+
+    # ------------------------------------------------------------------
+    # Cache & index
+    # ------------------------------------------------------------------
+
+    def _load(self) -> List[Dict[str, Any]]:
+        """Baca file & bangun index (sekali, detect perubahan mtime)."""
+        try:
+            mtime = self.memories_path.stat().st_mtime
+        except FileNotFoundError:
+            return []
+        if self._cache is not None and mtime == self._mtime:
+            return self._cache
+        memories = []
+        index: Dict[str, set] = {}
+        with open(self.memories_path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    mem = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                memories.append(mem)
+                for token in set(re.findall(r"[a-z0-9]+", mem.get("text", "").lower())):
+                    index.setdefault(token, set()).add(mem["id"])
+                for tag in mem.get("tags", []):
+                    index.setdefault(tag.lower(), set()).add(mem["id"])
+        self._cache = memories
+        self._index = index
+        self._mtime = mtime
+        return memories
+
+    def _invalidate(self) -> None:
+        """Cache harus di-reload (file berubah)."""
+        self._cache = None
+        self._index = {}
 
     # ------------------------------------------------------------------
     # CRUD
@@ -85,6 +130,7 @@ class MemoryStore:
         }
         with open(self.memories_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        self._invalidate()  # file berubah → cache harus reload
         return entry
 
     @staticmethod
@@ -104,34 +150,36 @@ class MemoryStore:
         return jaccard >= threshold
 
     def all(self) -> List[Dict[str, Any]]:
-        """Baca semua memory (urutan simpan)."""
-        out = []
-        with open(self.memories_path, "r", encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    out.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
-        return out
+        """Baca semua memory (dari cache, ga baca disk tiap kali)."""
+        return self._load()
 
     def search(self, query: str, *, scope: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Keyword search sederhana (case-insensitive, token match)."""
+        """Keyword search cepat dari index (O(1) lookup per kata).
+
+        Kalau query cocok index → langsung ambil. Fallback scan kalau
+        kata ga ada di index.
+        """
+        memories = self._load()
         q = query.lower()
         q_tokens = set(re.findall(r"[a-z0-9]+", q))
-        results = []
-        for mem in self.all():
-            if scope and mem.get("scope") != scope:
-                continue
-            text = mem.get("text", "").lower()
-            if q in text:
-                results.append(mem)
-                continue
-            tokens = set(re.findall(r"[a-z0-9]+", text))
-            if q_tokens & tokens:  # ada token yang cocok
-                results.append(mem)
+        ids: Optional[set] = None
+        for tok in q_tokens:
+            matched = self._index.get(tok, set())
+            ids = matched if ids is None else (ids & matched)
+            if ids is not None and not ids:
+                break  # ga ada yang match semua token
+        by_id = {m["id"]: m for m in memories}
+
+        if ids:
+            results = [by_id[i] for i in ids if i in by_id]
+        else:
+            # fallback: scan (kalau query cuma symbol, dll)
+            results = []
+            for mem in memories:
+                if q in mem.get("text", "").lower():
+                    results.append(mem)
+        if scope:
+            results = [m for m in results if m.get("scope") == scope]
         return results
 
     def delete(self, mem_id: str) -> bool:
@@ -149,6 +197,7 @@ class MemoryStore:
             for m in memories:
                 fh.write(json.dumps(m, ensure_ascii=False) + "\n")
         tmp.replace(self.memories_path)
+        self._invalidate()  # file diganti → cache harus reload
 
     def stats(self) -> Dict[str, Any]:
         memories = self.all()
