@@ -8,14 +8,16 @@ Run: python3 api.py  (port 8131 default)
 
 from __future__ import annotations
 
+import time
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from fastapi import FastAPI, Header, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from src.auth import KeyStore
 from src.config import api_host, api_key_file, api_port, banner, storage_dir
@@ -26,11 +28,80 @@ from src.profile import UserProfile
 from src.raw_store import RawStore
 from src.storage import MemoryStore
 
+
+# ----------------------------------------------------------------------
+# Rate limiter (in-memory, sliding window per API key)
+# ----------------------------------------------------------------------
+
+class RateLimiter:
+    """Sliding-window rate limiter per API key.
+
+    Simple & ringan: simpan timestamp request dalam dict per key.
+    Default: 120 request/menit per key (anti brute-force / abuse).
+    """
+
+    def __init__(self, limit: int = 120, window: int = 60):
+        self.limit = limit
+        self.window = window
+        self._hits: Dict[str, List[float]] = {}
+
+    def _cleanup(self, now: float) -> None:
+        stale = [k for k, v in self._hits.items() if not v]
+        for k in stale:
+            del self._hits[k]
+
+    def check(self, key: str) -> bool:
+        now = time.monotonic()
+        cutoff = now - self.window
+        hits = [t for t in self._hits.get(key, []) if t > cutoff]
+        if len(hits) >= self.limit:
+            self._hits[key] = hits
+            return False
+        hits.append(now)
+        self._hits[key] = hits
+        self._cleanup(now)
+        return True
+
+
+_rate_limiter = RateLimiter()
+
+
 app = FastAPI(
     title="Cruzl Labs API",
     description="AI-native memory layer untuk agent — 1 key = 1 user.",
-    version="0.5.0",
+    version="0.7.0",
 )
+
+
+# ----------------------------------------------------------------------
+# Global error handlers — API tidak pernah bocor stack trace / 500 polos
+# ----------------------------------------------------------------------
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+@app.exception_handler(Exception)
+async def generic_error_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error", "type": type(exc).__name__},
+    )
+
+
+# Rate limit middleware — cek semua request yang bawa Bearer key
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer ") and auth[7:].strip():
+        if not _rate_limiter.check(auth[7:].strip()):
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded. Coba lagi nanti."},
+                headers={"Retry-After": "60"},
+            )
+    return await call_next(request)
 
 _store = MemoryStore(storage_dir())
 _keys = KeyStore(storage_dir())
@@ -46,11 +117,11 @@ _embed = EmbeddingClient(storage_dir())
 # ----------------------------------------------------------------------
 
 class MemoryCreate(BaseModel):
-    text: str
-    type: str = "fact"
-    confidence: float = 0.8
-    scope: str = "user"
-    tags: List[str] = []
+    text: str = Field(..., min_length=1, max_length=5000, description="Isi memory")
+    type: str = Field("fact", pattern="^(fact|profile|reflection|relation)$")
+    confidence: float = Field(0.8, ge=0.0, le=1.0)
+    scope: str = Field("user", pattern="^(user|session|agent)$")
+    tags: List[str] = Field(default_factory=list, max_length=20)
     source: str = "api"
 
 
@@ -260,8 +331,8 @@ def stats(authorization: Optional[str] = Header(None)):
 # ----------------------------------------------------------------------
 
 class ChatMessage(BaseModel):
-    message: str
-    agent_reply: str = ""
+    message: str = Field(..., min_length=1, max_length=10000)
+    agent_reply: str = Field("", max_length=20000)
     auto_extract: bool = True
 
 
