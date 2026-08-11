@@ -90,12 +90,13 @@ def cmd_key(args: argparse.Namespace, store: MemoryStore) -> int:
 
     ks = KeyStore(args.storage)
     if args.action == "create":
-        res = ks.create_key(label=args.label, scope=args.scope)
+        res = ks.create_key(label=args.label, scope=args.scope, user_id=args.user_id)
         print(f"🔑 API key dibuat!")
-        print(f"  Key ID: {res['key_id']}")
-        print(f"  Key:    {res['key']}")
+        print(f"  Key ID:   {res['key_id']}")
+        print(f"  User ID:  {res['user_id']}")
+        print(f"  Key:      {res['key']}")
         print(f"  ⚠️  {res['warning']}")
-        print(f"  Scope:  {args.scope}")
+        print(f"  Scope:    {args.scope}")
         print()
         print("  Contoh pake:")
         print(f"  curl -H 'Authorization: Bearer {res['key']}' ...")
@@ -162,6 +163,7 @@ def build_parser() -> argparse.ArgumentParser:
     k_create = key_sub.add_parser("create", help="Buat API key baru")
     k_create.add_argument("--label", default="")
     k_create.add_argument("--scope", default="user", choices=["user", "session", "agent"])
+    k_create.add_argument("--user-id", dest="user_id", default="")
     k_create.set_defaults(func=cmd_key)
 
     k_list = key_sub.add_parser("list", help="List semua key")

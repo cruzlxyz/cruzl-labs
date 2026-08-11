@@ -59,23 +59,35 @@ class KeyStore:
     # CRUD
     # ------------------------------------------------------------------
 
-    def create_key(self, *, label: str = "", scope: str = "user") -> Dict[str, str]:
-        """Buat key baru. Return key mentah SEKALI (setelah ini ga bisa diliat)."""
+    def create_key(self, *, label: str = "", scope: str = "user", user_id: str = "") -> Dict[str, str]:
+        """Buat key baru. Return key mentah SEKALI (setelah ini ga bisa diliat).
+
+        Model isolasi: 1 API key = 1 user. Setiap key otomatis dapet
+        user_id sendiri (kalau ga dikasih), jadi memory tiap user
+        terisolasi — ga ada sharing antar key.
+        """
         key = generate_api_key()
         key_id = f"key_{uuid.uuid4().hex[:8]}"
+        uid = user_id or f"u_{uuid.uuid4().hex[:8]}"
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         data = self._read()
         data[key_id] = {
             "id": key_id,
             "label": label,
             "scope": scope,
+            "user_id": uid,  # ← 1 key = 1 user
             "key_hash": hash_key(key),  # ← cuma hash yang disimpan
             "created_at": now,
             "last_used": None,
             "revoked": False,
         }
         self._write(data)
-        return {"key_id": key_id, "key": key, "warning": "Simpan key ini! Tidak bisa dilihat lagi."}
+        return {
+            "key_id": key_id,
+            "key": key,
+            "user_id": uid,
+            "warning": "Simpan key ini! Tidak bisa dilihat lagi.",
+        }
 
     def verify(self, key: str) -> Optional[Dict[str, Any]]:
         """Verifikasi key. Return info key kalau valid, None kalau ga."""
