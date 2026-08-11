@@ -80,12 +80,16 @@ class Client:
     # ------------------------------------------------------------------
 
     def chat(self, message: str, agent_reply: str = "", auto_extract: bool = True) -> Dict[str, Any]:
-        """Kirim percakapan → memory di-extract otomatis."""
+        """Kirim percakapan → disimpan RAW + memory di-extract otomatis."""
         return self._request("POST", "/chat", {
             "message": message,
             "agent_reply": agent_reply,
             "auto_extract": auto_extract,
         })
+
+    def raw(self, days: int = 7) -> Dict[str, Any]:
+        """Lihat raw memory (mentah, permanen) N hari terakhir."""
+        return self._request("GET", f"/raw?days={days}")
 
     # ------------------------------------------------------------------
     # Context (buat inject ke session)

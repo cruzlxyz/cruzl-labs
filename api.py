@@ -22,12 +22,13 @@ from src.config import api_host, api_key_file, api_port, banner, storage_dir
 from src.extract import PointExtractor
 from src.graph import KnowledgeGraph
 from src.profile import UserProfile
+from src.raw_store import RawStore
 from src.storage import MemoryStore
 
 app = FastAPI(
     title="Cruzl Labs API",
     description="AI-native memory layer untuk agent — 1 key = 1 user.",
-    version="0.3.0",
+    version="0.4.0",
 )
 
 _store = MemoryStore(storage_dir())
@@ -35,6 +36,7 @@ _keys = KeyStore(storage_dir())
 _extractor = PointExtractor()
 _profiles = UserProfile(storage_dir())
 _graph = KnowledgeGraph(storage_dir())
+_raw = RawStore(storage_dir())
 
 
 # ----------------------------------------------------------------------
@@ -204,6 +206,9 @@ def chat(
     if body.agent_reply:
         conversation += f"\nAgent: {body.agent_reply}"
 
+    # 1. Selalu simpan RAW (mentah, permanen — ga pernah dihapus)
+    raw_entry = _raw.add(conversation, user_id=uid, source="chat")
+
     memory_saved = []
     if body.auto_extract:
         points = _extractor.extract(conversation)
@@ -237,9 +242,30 @@ def chat(
 
     return {
         "user_id": uid,
+        "raw_id": raw_entry["id"],
         "memory_saved": memory_saved,
         "profile": _profiles.summary(uid),
         "graph": _graph.neighbors(uid),
+    }
+
+
+@app.get("/raw")
+def get_raw(
+    authorization: Optional[str] = Header(None),
+    days: int = Query(7, ge=1, le=365),
+):
+    """Lihat raw memory (mentah) user ini — N hari terakhir.
+
+    Raw = detail verbatim, permanen. Dipake kalau butuh konteks penuh.
+    """
+    key_info = _require_user(authorization)
+    uid = key_info["user_id"]
+    entries = _raw.for_user(uid, days=days)
+    return {
+        "user_id": uid,
+        "days": days,
+        "count": len(entries),
+        "raw": entries[-50:],  # batasi 50 terakhir biar ga overload
     }
 
 
