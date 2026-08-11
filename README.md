@@ -1,6 +1,6 @@
 # 🧪 Cruzl Labs
 
-**AI-native memory layer untuk agent — ringan, self-host, dari nol.**
+**Memory infrastructure untuk AI agents — ringan, self-host, transparan.**
 
 > "Memory = belajar, bukan cuma nyimpen."
 
@@ -8,92 +8,142 @@ Dibangun oleh **0xcruzl** — AI agent operator & crypto ops.
 
 ---
 
-## 🏆 Kenapa Cruzl Labs Beda dari Memory Agent Lain?
+## 📦 What is Cruzl Labs?
 
-| | Mem0 | Honcho | Hindsight | Zep | **Cruzl Labs** |
-|---|------|--------|-----------|-----|----------------|
-| **RAM** | 300MB+ (vector DB) | SaaS | 1GB+ | 500MB+ (graph DB) | **~25-110 MB** ✅ |
-| **Biaya** | Freemium/SaaS | Managed paid | Pay-per-token | Enterprise | **Gratis, self-host** ✅ |
-| **Storage** | Chroma/PG | Cloud | Local heavy | Neo4j | **JSONL (1 file!)** ✅ |
-| **Embedding** | Local model | Cloud | Local model | Cloud | **Via API (0 RAM)** ✅ |
-| **Kompleksitas** | Perlu setup DB | Perlu service | Berat | Berat | **1 command jalan** ✅ |
-| **Isolasi user** | Multi-level rumit | Multi-level | Multi-level | Multi-level | **1 key = 1 user, simpel** ✅ |
-| **Transparansi** | Kotak hitam | Kotak hitam | Kotak hitam | Kotak hitam | **Baca JSONL langsung** ✅ |
-| **Lisensi** | Apache 2.0 (ok) | Proprietary | MIT (ok) | AGPL | **MIT** ✅ |
-
----
-
-## 🧬 DNA — Diambil dari yang Terbaik
+Cruzl Labs adalah **memory layer** untuk AI agents. Ia memberi agents memori persisten lintas sesi — sehingga agent **tidak lupa** siapa penggunanya, apa yang mereka sukai, dan apa yang sudah terjadi, walau session berpindah, restart, atau ganti platform.
 
 ```
-Cruzl Labs =
-  Mem0     → operasi cerdas (ADD/UPDATE/DELETE), multi-scope
-  Hindsight → entity resolution, retain/recall/reflect  ← PEMBEDA UTAMA
-  Honcho   → user modeling, dialectic reasoning
-  Zep      → knowledge graph + temporal (versi ringan)
+AGENT (session sementara, mudah hilang)
+   └── Cruzl Labs (permanen, per-user) ── ingat terus
 ```
 
-**"Semua kekuatan, tanpa beratnya."**
+**Model:** 1 API key = 1 user. Memory terisolasi per user.
 
-## 💡 Kelebihan Utama (TL;DR)
+## 🎯 Why Cruzl Labs?
 
-| # | Kelebihan | Detail |
-|---|-----------|--------|
-| 1 | **Ringan ekstrem** | 25MB inti — jalan di VPS 2GB bareng agent lain |
-| 2 | **Transparan total** | Memory = file JSONL yang bisa dibaca manusia |
-| 3 | **1 key = 1 user** | Isolasi simpel, ga pusing multi-tenant |
-| 4 | **0 RAM embedding** | Semantic search via API, bukan model lokal |
-| 5 | **Anti-duplikat** | Dedup + conflict resolution otomatis |
-| 6 | **Tanpa lock-in** | Data lu, file lu, format terbuka — migrate kapan aja |
+| Capability | Apa artinya |
+|-----------|-------------|
+| **Ringan ekstrem** | ~25MB inti — jalan di VPS 2GB bareng agent lain |
+| **Transparan total** | Memory = file JSONL yang bisa dibaca & diedit manusia |
+| **1 key = 1 user** | Isolasi simpel, tanpa kerumitan multi-tenant |
+| **0 RAM embedding** | Semantic search via API, bukan model lokal |
+| **Anti-duplikat** | Dedup + conflict resolution otomatis |
+| **Tanpa lock-in** | Data = file terbuka. Migrasi kapan pun mudah |
+| **Universal** | Bisa dipakai agent mana pun via API/SDK |
 
----
+## 🔍 Fitur
+
+| Fitur | Keterangan |
+|-------|-----------|
+| **Memory CRUD** | add / search / list / delete, dengan type + confidence |
+| **Dedup otomatis** | Memory yang mirip di-update, bukan diduplikasi |
+| **Raw + compressed** | Detail mentah tersimpan permanen, inti untuk baca cepat |
+| **LLM extraction** | Chat → memory otomatis (fakta, preferensi, pelajaran) |
+| **Knowledge graph** | Relasi antar entitas, queryable |
+| **User profiling** | Model pengguna yang berkembang dari interaksi |
+| **Semantic search** | Cari berdasarkan makna, bukan sekadar keyword |
+| **Hybrid search** | Keyword + semantic, ranking gabungan |
+| **Relevant-facts** | Ambil top-N fakta relevan — hemat token |
+| **Tag filtering** | Filter memory by metadata |
+| **Cross-session** | `GET /context` → inject memory ke agent mana pun |
 
 ## 🚀 Quickstart
 
 ```bash
-# Memory
+# Clone & jalankan
+git clone https://github.com/cruzlxyz/cruzl-labs.git
+cd cruzl-labs
+
+# Tambah & cari memory
 python3 cli.py add "User suka horror movies" --tag hobby --type fact
 python3 cli.py search "horror"
-python3 cli.py list --scope agent
-python3 cli.py stats
 
-# API key (1 key = 1 user, otomatis user_id sendiri)
-python3 cli.py key create --label "teman-crypto"
-python3 cli.py key verify --key mb_xxxxx
-python3 cli.py key list
-python3 cli.py key revoke key_xxxxx
+# Jalankan API server
+python3 api.py
+# → http://127.0.0.1:8131  (docs: /docs)
+
+# Buat API key (1 key = 1 user)
+python3 cli.py key create --label "my-agent"
+# → cl_xxxxx  (simpan! cuma muncul sekali)
 ```
 
-## 📁 Struktur
+**Atau install via pip:**
+```bash
+pip install git+https://github.com/cruzlxyz/cruzl-labs.git
+cruzl add "memory pertama" --tag test
+cruzl-api
+```
+
+## 🔌 Integrasi dengan Agent Mana Pun
+
+Cruzl Labs framework-agnostic — API HTTP + API key standar.
+
+```python
+from cruzl import Client
+c = Client(api_key="cl_xxx")
+
+# Inject ke system prompt saat session mulai
+ctx = c.context(query="preferensi pengguna")
+system_prompt += f"\n[Memory]\n{ctx['context']}"
+
+# Simpan memory dari percakapan (otomatis di-extract LLM)
+c.chat(message="gw suka film horror", agent_reply="oke")
+
+# Semantic search
+c.search_semantic("film")
+```
+
+Lihat [docs/INTEGRATION.md](docs/INTEGRATION.md) untuk integrasi Hermes, Claude Code, Codex, dan lainnya.
+
+## 🏗️ Arsitektur
 
 ```
 cruzl-labs/
-├── cli.py            # CLI (memory + key management)
+├── cli.py            # CLI: memory + key management
+├── api.py            # FastAPI server (14+ endpoint)
 ├── src/
-│   ├── storage.py    # JSONL storage + dedup + conflict resolution
-│   └── auth.py       # API key (hash-only, 1 key = 1 user)
-├── storage/          # Data (memories.jsonl, api_keys.json) — ga ke-commit
-├── docs/DESIGN.md    # Blueprint & roadmap
-└── tests/            # Unit tests (coming)
+│   ├── storage.py    # JSONL storage + dedup + conflict
+│   ├── raw_store.py  # Raw memory (mentah, permanen)
+│   ├── extract.py    # LLM point extraction
+│   ├── embed.py      # Semantic search (embedding via API)
+│   ├── graph.py      # Knowledge graph (JSON ringan)
+│   ├── profile.py    # User modeling
+│   ├── auth.py       # API key (hash-only, 1 key = 1 user)
+│   ├── client.py     # Universal SDK
+│   └── config.py     # Konfigurasi + .env loading
+├── storage/          # Data — file transparan, tanpa lock-in
+├── docs/             # Design, install, integration guides
+└── pyproject.toml    # pip installable
 ```
 
 ## 🔒 Keamanan
 
-- Key mentah cuma muncul **sekali** — server simpen sha256 hash
+- Key mentah cuma muncul **sekali** — server simpan SHA-256 hash
 - Constant-time compare (anti timing attack)
 - Revoke instan
 - Data user **terisolasi per key**
+- Data pribadi **tidak pernah di-commit** ke repo
 
-## 🗺️ Roadmap
+## 📈 Roadmap
 
-- [x] Fase 1: Storage JSONL + CLI CRUD + tag/scope/type
-- [x] API key system (hash-only, 1 key = 1 user)
+- [x] Storage JSONL + CLI + type/confidence
+- [x] API key system (1 key = 1 user)
 - [x] Dedup + conflict resolution
-- [ ] Fase 2c: API server (FastAPI + Bearer auth)
-- [ ] Fase 3: Semantic search (embedding via API) + hybrid ranking
-- [ ] Fase 4: Reflective summarization
-- [ ] Fase 5: Entity resolution + graph
-- [ ] Fase 6: Export Obsidian + backup
+- [x] API server (FastAPI)
+- [x] Raw + compressed memory
+- [x] LLM extraction (chat-driven)
+- [x] Knowledge graph + user profiling
+- [x] Semantic + hybrid search
+- [x] Relevant-facts + tag filtering
+- [ ] Document retrieval (RAG)
+- [ ] Memory versioning (rollback)
+- [ ] Export/backup (Obsidian/Markdown)
+
+## ⚖️ License
+
+MIT
+
+---
 
 ## 📬 Kontak
 

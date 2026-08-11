@@ -3,17 +3,17 @@
 AI-native memory layer untuk agent — dibangun dari nol, ringan, self-host.
 > "Memory = belajar, bukan cuma nyimpen."
 
-## DNA — Diambil dari 4 Sistem Memory
+## DNA — Pendekatan Desain
 
 ```
 Cruzl Labs =
-  Mem0     → operasi cerdas (ADD/UPDATE/DELETE/NOOP), multi-scope
-  Hindsight → entity resolution, retain/recall/reflect  ← PEMBEDA UTAMA
-  Honcho   → user modeling, dialectic cold/warm prompt
-  Zep      → knowledge graph + temporal, versi RINGAN (JSON)
+  Operasi cerdas (ADD/UPDATE/DELETE/NOOP) + multi-scope
+  Entity resolution + retain/recall/reflect      ← PEMBEDA UTAMA
+  User modeling + dialectic cold/warm prompt
+  Knowledge graph + temporal (versi RINGAN/JSON)
 ```
 
-**Filosofi: "Semua kekuatan, tanpa beratnya"** — simple JSONL, fitur cerdas kayak yang mahal.
+**Filosofi: "Semua kekuatan, tanpa beratnya"** — simple JSONL, fitur cerdas yang mumpuni.
 
 ## Arsitektur (1 store + type field)
 
@@ -156,12 +156,12 @@ POST /chat {"message": "gw suka film horror"}
 
 ## Kenapa Ini Bikin Cruzl Labs BEDA
 
-| Fitur | Mereka | Cruzl Labs |
-|-------|--------|------------|
-| Chat-driven memory | Honcho (SaaS) | **Self-host + JSONL** |
-| Knowledge graph | Zep (Neo4j berat) | **JSON ringan** |
-| User modeling | Honcho (cloud) | **File lokal transparan** |
-| Point extraction | Hindsight | **Dedup + conflict otomatis** |
+| Fitur | Pendekatan umum | Cruzl Labs |
+|-------|-----------------|------------|
+| Chat-driven memory | Managed service / cloud | **Self-host + JSONL** |
+| Knowledge graph | Database graph berat | **JSON ringan** |
+| User modeling | Cloud-based | **File lokal transparan** |
+| Point extraction | Hanya retrieval | **Dedup + conflict otomatis** |
 
 ## Kenapa Beda dari Sistem Lain
 
