@@ -3,6 +3,61 @@
 Cruzl Labs itu **framework-agnostic** — API HTTP standar + API key.
 Agent mana pun bisa pake: Hermes, Claude Code, Codex, OpenClaw, Cursor, custom agent.
 
+## 🚀 Cara PALING Gampang: MCP Server
+
+Cruzl Labs punya **MCP server** (`mcp_server.py`) — protokol standar yang
+didukung Hermes, Claude Code, Cursor, dan hampir semua agent framework.
+Satu setup, bisa dipake di mana-mana.
+
+```bash
+# Jalankan MCP server (stdio)
+python3 mcp_server.py
+```
+
+### Hermes
+```yaml
+# ~/.hermes/config.yaml
+mcp_servers:
+  cruzl:
+    command: python3
+    args: ["/path/to/cruzl-labs/mcp_server.py"]
+    env:
+      CRUZL_API_KEY: "cl_xxx"
+```
+
+Setelah restart → tools tersedia dengan prefix `mcp_cruzl_*`:
+`mcp_cruzl_memory_add`, `mcp_cruzl_context_get`, `mcp_cruzl_memory_search`, dll.
+
+### Claude Code / Cursor (MCP client)
+```json
+{
+  "mcpServers": {
+    "cruzl": {
+      "command": "python3",
+      "args": ["/path/to/cruzl-labs/mcp_server.py"],
+      "env": { "CRUZL_API_KEY": "cl_xxx" }
+    }
+  }
+}
+```
+
+### 13 Tools yang Tersedia via MCP
+| Tool | Fungsi |
+|------|--------|
+| `memory_add` | Tambah memory (dedup otomatis) |
+| `memory_search` | Cari (keyword) |
+| `memory_search_semantic` | Cari berdasarkan makna |
+| `memory_search_hybrid` | Keyword + semantic |
+| `memory_list` | List (filter tag/type) |
+| `memory_delete` | Hapus |
+| `memory_tags` | List tag + count |
+| `context_get` | **Inject ke system prompt** (cross-session) |
+| `chat_remember` | Simpan percakapan → memory otomatis |
+| `profile_get` | Profil user |
+| `graph_get` | Knowledge graph |
+| `raw_get` | Raw memory |
+| `stats_get` | Statistik |
+
 ---
 
 ## 🧠 Konsep: Memory DI LUAR Session
